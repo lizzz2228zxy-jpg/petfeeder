@@ -17,7 +17,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <!-- ── MQTT.js（WebSocket 客户端） ── -->
+  <!-- ── MQTT.js ── -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 
   <script>
@@ -40,38 +40,68 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     .page { display: none; }
     .page.active { display: block; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
     .progress-bar { transition: width 0.5s ease; }
     .btn-press:active { transform: scale(0.98); }
-    .slide-up { animation: slideUp 0.3s ease; }
-    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     .fade-in { animation: fadeIn 0.3s ease; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-    /* MQTT 连接状态指示灯动画 */
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
     }
-    .dot-connecting { animation: pulse-dot 1s infinite; background-color: #F59E0B; }
+    .dot-connecting  { animation: pulse-dot 1s infinite; background-color: #F59E0B; }
     .dot-connected   { background-color: #10B981; }
     .dot-disconnected{ background-color: #EF4444; }
+
+    /* 摄像头画面 */
+    #cam-stream {
+      width: 100%;
+      border-radius: 1rem;
+      background: #0f172a;
+      display: block;
+      min-height: 200px;
+      object-fit: cover;
+    }
+    .cam-offline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      min-height: 200px;
+      background: #0f172a;
+      border-radius: 1rem;
+      color: #475569;
+    }
+    /* 全屏摄像头遮罩 */
+    #cam-fullscreen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    #cam-fullscreen.active { display: flex; }
+    #cam-fullscreen img {
+      width: 100%;
+      max-height: 100vh;
+      object-fit: contain;
+    }
   </style>
 </head>
 <body class="bg-surface">
 <div id="app" class="max-w-md mx-auto bg-white min-h-screen relative">
 
-  <!-- ==================== 首页（主控制页面） ==================== -->
+  <!-- ==================== 首页 ==================== -->
   <div id="page-home" class="page active">
-    <!-- Header -->
     <div class="bg-white px-5 pt-14 pb-4">
       <div class="flex justify-between items-center">
         <div>
           <h1 class="text-2xl font-bold text-slate-800">智能宠物喂食器</h1>
           <p class="text-sm text-slate-400 mt-1">ESP32-Feeder-001</p>
         </div>
-        <!-- MQTT 连接状态 -->
         <div id="conn-badge" class="flex items-center bg-slate-100 px-3 py-1.5 rounded-full">
           <span id="conn-dot" class="w-2 h-2 rounded-full mr-2 dot-connecting"></span>
           <span id="conn-text" class="text-xs text-slate-500 font-medium">连接中…</span>
@@ -81,7 +111,6 @@
 
     <!-- Main Card -->
     <div class="mx-4 mt-4 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-500/10">
-      <!-- Food Level Section -->
       <div class="mb-5">
         <div class="flex justify-between items-center mb-3">
           <span class="text-slate-500 text-sm font-medium">粮食余量</span>
@@ -95,13 +124,11 @@
         </div>
       </div>
 
-      <!-- Warning Banner -->
       <div class="bg-amber-50 px-3 py-2 rounded-lg mb-5 hidden" id="food-warning">
         <p class="text-amber-600 text-xs font-medium">⚠️ 粮食不足，请及时添加</p>
       </div>
 
-      <!-- Plate Status -->
-      <div class="flex items-center bg-slate-50 rounded-2xl p-4" id="plate-container">
+      <div class="flex items-center bg-slate-50 rounded-2xl p-4">
         <div class="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center mr-4">
           <div class="w-10 h-10 rounded-full bg-indigo-200 flex items-center justify-center">
             <div class="flex gap-1">
@@ -137,8 +164,6 @@
     <!-- Action Buttons -->
     <div class="mx-4 mt-6">
       <h3 class="text-lg font-semibold text-slate-800 mb-4">快捷操作</h3>
-
-      <!-- Main Feed Button -->
       <button onclick="handleFeed()" class="w-full bg-primary rounded-2xl p-5 flex items-center shadow-lg shadow-indigo-500/30 btn-press transition-all">
         <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mr-4">
           <i class="fas fa-bowl-food text-white text-xl"></i>
@@ -149,7 +174,6 @@
         </div>
       </button>
 
-      <!-- Plate Buttons -->
       <div class="flex gap-3 mt-4">
         <button onclick="raisePlate()" id="btn-raise" class="flex-1 bg-white rounded-2xl p-4 flex items-center justify-center border-2 border-primary bg-primary-bg btn-press transition-all">
           <i class="fas fa-arrow-up text-primary mr-2"></i>
@@ -162,7 +186,7 @@
       </div>
     </div>
 
-    <!-- Tips Card -->
+    <!-- Tips -->
     <div class="mx-4 mt-6 mb-24 bg-white rounded-2xl p-4">
       <h4 class="text-sm font-semibold text-slate-500 mb-3">使用提示</h4>
       <div class="space-y-2">
@@ -176,7 +200,7 @@
         </div>
         <div class="flex items-center">
           <span class="w-1.5 h-1.5 rounded-full bg-primary mr-2.5"></span>
-          <span class="text-xs text-slate-400">定时计划将自动同步至设备本地，关闭网页后仍可执行</span>
+          <span class="text-xs text-slate-400">定时计划关闭网页后仍可执行</span>
         </div>
       </div>
     </div>
@@ -189,7 +213,6 @@
       <p class="text-sm text-slate-400 mt-1">设置自动喂食时间与食量</p>
     </div>
 
-    <!-- Overview Card -->
     <div class="mx-4 mt-4 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-500/10 flex">
       <div class="flex-1 text-center">
         <p id="sch-enabled-count" class="text-2xl font-bold text-primary">3</p>
@@ -207,13 +230,9 @@
       </div>
     </div>
 
-    <!-- Schedule List -->
     <div class="mx-4 mt-6">
       <h3 class="text-lg font-semibold text-slate-800 mb-4">喂食计划</h3>
-      <div id="schedule-list" class="space-y-3">
-        <!-- 动态渲染，见 JS -->
-      </div>
-      <!-- Add Button -->
+      <div id="schedule-list" class="space-y-3"></div>
       <button onclick="addSchedule()" class="w-full mt-4 border-2 border-dashed border-slate-300 rounded-2xl py-4 flex items-center justify-center">
         <span class="w-6 h-6 rounded-full bg-primary-bg flex items-center justify-center mr-2">
           <i class="fas fa-plus text-primary text-xs"></i>
@@ -222,7 +241,6 @@
       </button>
     </div>
 
-    <!-- MQTT 同步状态提示 -->
     <div class="mx-4 mt-4 mb-24">
       <div id="sync-toast" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 flex items-center">
         <i class="fas fa-cloud-upload-alt text-primary mr-3"></i>
@@ -231,20 +249,62 @@
     </div>
   </div>
 
-  <!-- ==================== 粮食监测页面 ==================== -->
+  <!-- ==================== 监测页面（含摄像头） ==================== -->
   <div id="page-monitor" class="page">
     <div class="bg-white px-5 pt-14 pb-4">
-      <h1 class="text-2xl font-bold text-slate-800">粮食监测</h1>
-      <p class="text-sm text-slate-400 mt-1">实时了解粮食余量与消耗情况</p>
+      <h1 class="text-2xl font-bold text-slate-800">实时监测</h1>
+      <p class="text-sm text-slate-400 mt-1">摄像头画面与粮食余量</p>
     </div>
 
-    <!-- Main Card -->
+    <!-- ★ 摄像头卡片 -->
+    <div class="mx-4 mt-4 bg-white rounded-3xl p-4 shadow-lg shadow-indigo-500/10">
+      <div class="flex justify-between items-center mb-3">
+        <div class="flex items-center">
+          <i class="fas fa-video text-primary mr-2"></i>
+          <span class="font-semibold text-slate-800 text-sm">实时画面</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- 摄像头状态点 -->
+          <span id="cam-dot" class="w-2 h-2 rounded-full bg-red-500"></span>
+          <span id="cam-status-text" class="text-xs text-slate-400">未连接</span>
+          <!-- 全屏按钮 -->
+          <button onclick="openFullscreen()" class="ml-1 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+            <i class="fas fa-expand text-slate-500 text-xs"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 画面区域：连接后显示 img，未连接显示占位 -->
+      <div id="cam-container">
+        <div id="cam-placeholder" class="cam-offline">
+          <i class="fas fa-camera-slash text-3xl mb-3" style="color:#334155"></i>
+          <p class="text-sm text-slate-500 font-medium">摄像头未连接</p>
+          <p class="text-xs text-slate-400 mt-1">请在设置中填写 ESP32-CAM 地址</p>
+        </div>
+        <img id="cam-stream" src="" alt="摄像头画面" class="hidden" onerror="onCamError()">
+      </div>
+
+      <!-- 地址输入行（折叠式） -->
+      <div class="mt-3 pt-3 border-t border-slate-100">
+        <div class="flex gap-2">
+          <input id="cam-url-input" type="text" placeholder="http://192.168.x.x/stream"
+            class="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-primary"
+            value="">
+          <button onclick="connectCamera()" class="px-3 py-2 bg-primary rounded-lg text-white text-xs font-semibold btn-press">连接</button>
+          <button onclick="disconnectCamera()" class="px-3 py-2 bg-slate-100 rounded-lg text-slate-500 text-xs font-semibold btn-press">断开</button>
+        </div>
+        <p class="text-xs text-slate-400 mt-2">
+          💡 ESP32-CAM 默认地址为 <span class="font-mono text-primary">http://192.168.x.x/stream</span>，在设置页可查看 IP
+        </p>
+      </div>
+    </div>
+
+    <!-- 粮食余量卡片 -->
     <div class="mx-4 mt-4 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-500/10">
       <div class="flex justify-between items-center mb-4">
         <span class="text-slate-500 text-sm font-medium">当前余量</span>
         <span id="monitor-badge" class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-600 text-xs font-semibold flex items-center">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-          充足
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>充足
         </span>
       </div>
 
@@ -273,42 +333,7 @@
       </div>
     </div>
 
-    <!-- Weekly Stats -->
-    <div class="mx-4 mt-4 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-500/10">
-      <h3 class="text-lg font-semibold text-slate-800 mb-4">本周消耗</h3>
-      <div class="flex items-end justify-between h-32 mb-4">
-        <div class="flex flex-col items-center flex-1">
-          <div class="w-6 bg-primary-bg rounded-t" style="height:40%"></div>
-          <p class="text-xs text-slate-400 mt-1">一</p>
-        </div>
-        <div class="flex flex-col items-center flex-1">
-          <div class="w-6 bg-primary rounded-t" style="height:70%"></div>
-          <p class="text-xs text-slate-400 mt-1">二</p>
-        </div>
-        <div class="flex flex-col items-center flex-1">
-          <div class="w-6 bg-primary-bg rounded-t" style="height:55%"></div>
-          <p class="text-xs text-slate-400 mt-1">三</p>
-        </div>
-        <div class="flex flex-col items-center flex-1">
-          <div class="w-6 bg-primary-bg rounded-t" style="height:80%"></div>
-          <p class="text-xs text-slate-400 mt-1">四</p>
-        </div>
-        <div class="flex flex-col items-center flex-1">
-          <div class="w-6 bg-primary rounded-t" style="height:60%"></div>
-          <p class="text-xs text-slate-400 mt-1">五</p>
-        </div>
-        <div class="flex flex-col items-center flex-1">
-          <div class="w-6 bg-primary-bg rounded-t" style="height:45%"></div>
-          <p class="text-xs text-slate-400 mt-1">六</p>
-        </div>
-        <div class="flex flex-col items-center flex-1">
-          <div class="w-6 bg-primary rounded-t" style="height:90%"></div>
-          <p class="text-xs text-slate-400 mt-1">日</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feed Log -->
+    <!-- 喂食记录 -->
     <div class="mx-4 mt-4 mb-24 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-500/10">
       <h3 class="text-lg font-semibold text-slate-800 mb-4">喂食记录</h3>
       <div id="feed-log" class="divide-y divide-slate-100">
@@ -336,21 +361,21 @@
     </div>
   </div>
 
-  <!-- ==================== 设备连接页面 ==================== -->
+  <!-- ==================== 设备设置页面 ==================== -->
   <div id="page-settings" class="page">
     <div class="bg-white px-5 pt-14 pb-4">
       <h1 class="text-2xl font-bold text-slate-800">设备连接</h1>
-      <p class="text-sm text-slate-400 mt-1">管理智能喂食器设备连接</p>
+      <p class="text-sm text-slate-400 mt-1">管理喂食器与摄像头连接</p>
     </div>
 
-    <!-- Current Connection -->
+    <!-- MQTT 连接卡片 -->
     <div class="mx-4 mt-4 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-500/10">
       <div class="flex items-center mb-5">
         <div class="w-14 h-14 rounded-full bg-primary-bg flex items-center justify-center mr-4">
           <i class="fas fa-microchip text-primary text-xl"></i>
         </div>
         <div class="flex-1">
-          <p class="font-bold text-slate-800">ESP32-Feeder-001</p>
+          <p class="font-bold text-slate-800">ESP32 喂食器</p>
           <div class="flex items-center mt-1">
             <span id="settings-dot" class="w-2 h-2 rounded-full bg-red-500 mr-1.5"></span>
             <span id="settings-text" class="text-xs text-red-500 font-medium">未连接</span>
@@ -380,15 +405,38 @@
       </button>
     </div>
 
-    <!-- Device List -->
-    <div class="mx-4 mt-6 mb-24">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold text-slate-800">可用设备</h3>
-        <button onclick="scanDevices()" id="scan-btn" class="px-3 py-1.5 bg-primary-bg rounded-full flex items-center">
-          <span class="w-2 h-2 rounded-full bg-primary animate-pulse mr-2"></span>
-          <span class="text-primary text-xs font-semibold">搜索设备</span>
-        </button>
+    <!-- ★ ESP32-CAM 设置卡片 -->
+    <div class="mx-4 mt-4 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-500/10">
+      <div class="flex items-center mb-4">
+        <div class="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center mr-4">
+          <i class="fas fa-camera text-primary text-xl"></i>
+        </div>
+        <div class="flex-1">
+          <p class="font-bold text-slate-800">ESP32-CAM</p>
+          <div class="flex items-center mt-1">
+            <span id="cam-settings-dot" class="w-2 h-2 rounded-full bg-red-500 mr-1.5"></span>
+            <span id="cam-settings-text" class="text-xs text-red-500 font-medium">未连接</span>
+          </div>
+        </div>
       </div>
+
+      <p class="text-xs text-slate-500 mb-2 font-medium">摄像头流地址</p>
+      <div class="flex gap-2 mb-3">
+        <input id="settings-cam-url" type="text" placeholder="http://192.168.x.x/stream"
+          class="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-primary"
+          value="">
+        <button onclick="saveAndConnectCamera()" class="px-4 py-2 bg-primary rounded-lg text-white text-xs font-semibold btn-press">保存连接</button>
+      </div>
+
+      <div class="bg-slate-50 rounded-xl p-3">
+        <p class="text-xs text-slate-500 font-medium mb-1">💡 如何找到 ESP32-CAM 的 IP 地址？</p>
+        <p class="text-xs text-slate-400">将 ESP32-CAM 烧录好固件并连上同一个 WiFi 后，打开路由器管理页面或串口监视器，即可看到分配的 IP 地址。</p>
+      </div>
+    </div>
+
+    <!-- 设备列表 -->
+    <div class="mx-4 mt-4 mb-24">
+      <h3 class="text-lg font-semibold text-slate-800 mb-4">已绑定设备</h3>
       <div class="space-y-3">
         <div class="bg-white rounded-2xl p-4 shadow-sm flex items-center">
           <div class="w-11 h-11 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
@@ -396,9 +444,19 @@
           </div>
           <div class="flex-1">
             <p class="font-semibold text-slate-800 text-sm">ESP32-Feeder-001</p>
-            <p class="text-xs text-slate-400 mt-1">MQTT 主设备</p>
+            <p class="text-xs text-slate-400 mt-1">MQTT 喂食控制器</p>
           </div>
-          <button class="px-4 py-1.5 bg-primary rounded-lg text-white text-xs font-semibold">已绑定</button>
+          <span class="px-3 py-1 bg-primary rounded-lg text-white text-xs font-semibold">主设备</span>
+        </div>
+        <div class="bg-white rounded-2xl p-4 shadow-sm flex items-center">
+          <div class="w-11 h-11 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+            <i class="fas fa-camera text-primary"></i>
+          </div>
+          <div class="flex-1">
+            <p class="font-semibold text-slate-800 text-sm">ESP32-CAM</p>
+            <p class="text-xs text-slate-400 mt-1" id="cam-ip-display">未设置地址</p>
+          </div>
+          <span id="cam-bind-badge" class="px-3 py-1 bg-slate-200 rounded-lg text-slate-500 text-xs font-semibold">未连接</span>
         </div>
       </div>
     </div>
@@ -407,7 +465,7 @@
   <!-- ==================== Tab Bar ==================== -->
   <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 max-w-md mx-auto">
     <div class="flex">
-      <button onclick="showPage('home')" class="flex-1 py-3 flex flex-col items-center tab-btn active" data-page="home">
+      <button onclick="showPage('home')" class="flex-1 py-3 flex flex-col items-center tab-btn" data-page="home">
         <i class="fas fa-home text-lg mb-1"></i>
         <span class="text-xs">首页</span>
       </button>
@@ -416,7 +474,7 @@
         <span class="text-xs">定时</span>
       </button>
       <button onclick="showPage('monitor')" class="flex-1 py-3 flex flex-col items-center tab-btn" data-page="monitor">
-        <i class="fas fa-chart-line text-lg mb-1"></i>
+        <i class="fas fa-video text-lg mb-1"></i>
         <span class="text-xs">监测</span>
       </button>
       <button onclick="showPage('settings')" class="flex-1 py-3 flex flex-col items-center tab-btn" data-page="settings">
@@ -430,8 +488,19 @@
   </div>
 </div>
 
+<!-- ==================== 全屏摄像头遮罩 ==================== -->
+<div id="cam-fullscreen">
+  <div class="w-full flex justify-between items-center px-4 py-3 absolute top-0">
+    <span class="text-white text-sm font-semibold">实时画面</span>
+    <button onclick="closeFullscreen()" class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+      <i class="fas fa-compress text-white"></i>
+    </button>
+  </div>
+  <img id="cam-fullscreen-img" src="" alt="全屏画面" style="width:100%;max-height:100vh;object-fit:contain;">
+</div>
+
 <!-- ================================================================
-     MQTT + 应用逻辑
+     应用逻辑
 ================================================================ -->
 <script>
 // ──────────────────────────────────────────────
@@ -443,15 +512,10 @@ const TOPIC_STATUS = 'Zhengxinyu/Feeder/Status';
 const TOPIC_SCHED  = 'Zhengxinyu/Feeder/Schedule';
 
 let mqttClient = null;
-
-// ──────────────────────────────────────────────
-// 应用状态
-// ──────────────────────────────────────────────
 let plateStatus = 'raised';
 let foodLevel   = 75;
 let feedCountToday = 0;
 
-// 默认定时计划（id, label, time, amount, enabled）
 let schedules = [
   { id: 1, label: '早餐', time: '07:00', amount: 30, enabled: true },
   { id: 2, label: '午餐', time: '12:00', amount: 30, enabled: true },
@@ -459,111 +523,177 @@ let schedules = [
 ];
 
 // ──────────────────────────────────────────────
+// ★ 摄像头相关
+// ──────────────────────────────────────────────
+let camUrl = localStorage.getItem('camUrl') || '';
+let camConnected = false;
+let camRetryTimer = null;
+
+function connectCamera() {
+  const input = document.getElementById('cam-url-input');
+  const url = input.value.trim();
+  if (!url) { showToast('请输入摄像头地址'); return; }
+  camUrl = url;
+  localStorage.setItem('camUrl', url);
+  loadCameraStream(url);
+}
+
+function saveAndConnectCamera() {
+  const input = document.getElementById('settings-cam-url');
+  const url = input.value.trim();
+  if (!url) { showToast('请输入摄像头地址'); return; }
+  camUrl = url;
+  localStorage.setItem('camUrl', url);
+  // 同步到监测页输入框
+  document.getElementById('cam-url-input').value = url;
+  loadCameraStream(url);
+  showPage('monitor'); // 跳转到监测页查看
+}
+
+function loadCameraStream(url) {
+  const img = document.getElementById('cam-stream');
+  const placeholder = document.getElementById('cam-placeholder');
+
+  // 加随机参数防止缓存，让浏览器持续拉取 MJPEG 流
+  img.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+  img.classList.remove('hidden');
+  placeholder.classList.add('hidden');
+
+  img.onload = () => setCamStatus(true);
+  // onerror 已在 HTML 的 onerror 属性中绑定
+}
+
+function onCamError() {
+  setCamStatus(false);
+  // 5秒后自动重试
+  clearTimeout(camRetryTimer);
+  camRetryTimer = setTimeout(() => {
+    if (camUrl) loadCameraStream(camUrl);
+  }, 5000);
+}
+
+function disconnectCamera() {
+  clearTimeout(camRetryTimer);
+  const img = document.getElementById('cam-stream');
+  img.src = '';
+  img.classList.add('hidden');
+  document.getElementById('cam-placeholder').classList.remove('hidden');
+  setCamStatus(false);
+}
+
+function setCamStatus(connected) {
+  camConnected = connected;
+  const dot  = document.getElementById('cam-dot');
+  const txt  = document.getElementById('cam-status-text');
+  const sDot = document.getElementById('cam-settings-dot');
+  const sTxt = document.getElementById('cam-settings-text');
+  const badge = document.getElementById('cam-bind-badge');
+  const ipDisp = document.getElementById('cam-ip-display');
+
+  if (connected) {
+    dot.className  = 'w-2 h-2 rounded-full bg-emerald-500';
+    txt.textContent = '直播中';
+    txt.className   = 'text-xs text-emerald-600 font-medium';
+    sDot.className  = 'w-2 h-2 rounded-full bg-emerald-500 mr-1.5';
+    sTxt.textContent = '已连接';
+    sTxt.className   = 'text-xs text-emerald-600 font-medium';
+    badge.textContent = '直播中';
+    badge.className   = 'px-3 py-1 bg-emerald-100 rounded-lg text-emerald-600 text-xs font-semibold';
+    ipDisp.textContent = camUrl;
+  } else {
+    dot.className   = 'w-2 h-2 rounded-full bg-red-500';
+    txt.textContent = '未连接';
+    txt.className   = 'text-xs text-slate-400 font-medium';
+    sDot.className  = 'w-2 h-2 rounded-full bg-red-500 mr-1.5';
+    sTxt.textContent = '未连接';
+    sTxt.className   = 'text-xs text-red-500 font-medium';
+    badge.textContent = '未连接';
+    badge.className   = 'px-3 py-1 bg-slate-200 rounded-lg text-slate-500 text-xs font-semibold';
+    ipDisp.textContent = camUrl || '未设置地址';
+  }
+}
+
+function openFullscreen() {
+  if (!camConnected) { showToast('摄像头未连接'); return; }
+  const fs = document.getElementById('cam-fullscreen');
+  document.getElementById('cam-fullscreen-img').src = document.getElementById('cam-stream').src;
+  fs.classList.add('active');
+  // 锁定屏幕方向为横屏（部分浏览器支持）
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(() => {});
+  }
+}
+
+function closeFullscreen() {
+  document.getElementById('cam-fullscreen').classList.remove('active');
+  if (screen.orientation && screen.orientation.unlock) {
+    screen.orientation.unlock();
+  }
+}
+
+// ──────────────────────────────────────────────
 // MQTT 初始化
 // ──────────────────────────────────────────────
 function initMQTT() {
   const clientId = 'WebClient_' + Math.random().toString(16).slice(2, 8);
   mqttClient = mqtt.connect(MQTT_BROKER, {
-    clientId,
-    clean: true,
-    reconnectPeriod: 5000,   // 断线 5s 后自动重连
-    connectTimeout: 10000,
+    clientId, clean: true, reconnectPeriod: 5000, connectTimeout: 10000,
   });
-
   mqttClient.on('connect', () => {
-    console.log('[MQTT] 已连接');
     setConnStatus('connected');
-    mqttClient.subscribe(TOPIC_STATUS, { qos: 1 }, err => {
-      if (err) console.error('[MQTT] 订阅失败:', err);
-    });
+    mqttClient.subscribe(TOPIC_STATUS, { qos: 1 });
   });
-
-  mqttClient.on('reconnect', () => {
-    console.log('[MQTT] 重新连接中…');
-    setConnStatus('connecting');
-  });
-
-  mqttClient.on('offline', () => {
-    console.warn('[MQTT] 离线');
-    setConnStatus('disconnected');
-  });
-
-  mqttClient.on('error', err => {
-    console.error('[MQTT] 错误:', err);
-    setConnStatus('disconnected');
-  });
-
+  mqttClient.on('reconnect', () => setConnStatus('connecting'));
+  mqttClient.on('offline',   () => setConnStatus('disconnected'));
+  mqttClient.on('error',     () => setConnStatus('disconnected'));
   mqttClient.on('message', (topic, payload) => {
-    const msg = payload.toString();
-    console.log('[MQTT] 收到消息:', topic, msg);
-    if (topic === TOPIC_STATUS) handleStatusMessage(msg);
+    if (topic === TOPIC_STATUS) handleStatusMessage(payload.toString());
   });
 }
 
-// ──────────────────────────────────────────────
-// 处理 ESP32 上报的状态 JSON
-// 格式：{"food_level": 75}  或  {"food_level":75, "plate":"raised"}
-// ──────────────────────────────────────────────
 function handleStatusMessage(raw) {
   try {
     const data = JSON.parse(raw);
-
-    // 更新粮食余量
     if (typeof data.food_level === 'number') {
       foodLevel = Math.max(0, Math.min(100, data.food_level));
       updateFoodDisplay();
     }
-
-    // 更新餐盘状态（ESP32 可选上报）
     if (data.plate === 'raised' || data.plate === 'retracted') {
       plateStatus = data.plate;
       updatePlateDisplay();
     }
-
-    // 今日喂食次数（可选）
     if (typeof data.feed_count === 'number') {
       feedCountToday = data.feed_count;
       document.getElementById('stat-feed-count').textContent = feedCountToday;
     }
-
-    // 设备在线状态
     document.getElementById('stat-device').textContent = '在线';
     document.getElementById('stat-device').className = 'text-xl font-bold text-emerald-500';
-  } catch (e) {
-    console.warn('[MQTT] 状态解析失败:', e);
-  }
+  } catch(e) {}
 }
 
-// ──────────────────────────────────────────────
-// 发布 MQTT 消息
-// ──────────────────────────────────────────────
 function mqttPublish(topic, payload, qos = 1) {
   if (!mqttClient || !mqttClient.connected) {
-    showToast('MQTT 未连接，指令未发送', 'warn');
+    showToast('MQTT 未连接，指令未发送');
     return false;
   }
-  mqttClient.publish(topic, payload, { qos }, err => {
-    if (err) console.error('[MQTT] 发布失败:', err);
-  });
+  mqttClient.publish(topic, payload, { qos });
   return true;
 }
 
-// 重新连接（按钮触发）
 function reconnectMQTT() {
-  if (mqttClient) { mqttClient.end(true); }
+  if (mqttClient) mqttClient.end(true);
   setConnStatus('connecting');
   setTimeout(initMQTT, 300);
 }
 
 // ──────────────────────────────────────────────
-// UI 状态更新
+// UI 状态
 // ──────────────────────────────────────────────
 function setConnStatus(state) {
   const dot  = document.getElementById('conn-dot');
   const text = document.getElementById('conn-text');
   const sDot = document.getElementById('settings-dot');
   const sTxt = document.getElementById('settings-text');
-
   dot.className = 'w-2 h-2 rounded-full mr-2';
   if (state === 'connected') {
     dot.classList.add('dot-connected');
@@ -600,7 +730,6 @@ function handleFeed() {
     const hm = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
     document.getElementById('stat-last-feed').textContent = hm;
     showToast('投喂指令已发送 🐾');
-    // 在喂食记录最上方插入一条
     addFeedLog('今天 ' + hm, '手动喂食', '30g', true);
   }
 }
@@ -619,21 +748,15 @@ function retractPlate() {
   updatePlateDisplay();
 }
 
-// ──────────────────────────────────────────────
-// 粮食显示更新
-// ──────────────────────────────────────────────
 function updateFoodDisplay() {
-  document.getElementById('food-bar').style.width   = foodLevel + '%';
-  document.getElementById('food-value').innerHTML   = foodLevel + '<span class="text-lg">%</span>';
-  document.getElementById('food-pct').textContent   = foodLevel + '%';
-
-  // 监测页同步
-  const grams = Math.round(foodLevel * 6); // 600g 满载
+  document.getElementById('food-bar').style.width = foodLevel + '%';
+  document.getElementById('food-value').innerHTML = foodLevel + '<span class="text-lg">%</span>';
+  document.getElementById('food-pct').textContent = foodLevel + '%';
+  const grams = Math.round(foodLevel * 6);
   document.getElementById('monitor-tank').style.height = foodLevel + '%';
   document.getElementById('monitor-bar').style.width   = foodLevel + '%';
   document.getElementById('monitor-grams').textContent = grams;
   document.getElementById('monitor-pct').textContent   = foodLevel + '%';
-
   const badge = document.getElementById('monitor-badge');
   if (foodLevel >= 50) {
     badge.className = 'px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-600 text-xs font-semibold flex items-center';
@@ -645,46 +768,35 @@ function updateFoodDisplay() {
     badge.className = 'px-2.5 py-1 rounded-lg bg-red-100 text-red-600 text-xs font-semibold flex items-center';
     badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>不足';
   }
-
   document.getElementById('food-warning').classList.toggle('hidden', foodLevel >= 20);
 }
 
-// ──────────────────────────────────────────────
-// 餐盘状态显示
-// ──────────────────────────────────────────────
 function updatePlateDisplay() {
-  const status   = document.getElementById('plate-status');
-  const sub      = document.getElementById('plate-sub');
-  const btnRaise  = document.getElementById('btn-raise');
-  const btnRetract = document.getElementById('btn-retract');
-
+  const status = document.getElementById('plate-status');
+  const sub    = document.getElementById('plate-sub');
+  const btnR   = document.getElementById('btn-raise');
+  const btnRt  = document.getElementById('btn-retract');
   if (plateStatus === 'raised') {
-    status.textContent = '餐盘已升起';
-    sub.textContent    = '宠物可以进食';
-    btnRaise.classList.add('border-primary','bg-primary-bg');
-    btnRaise.classList.remove('border-slate-200');
-    btnRaise.querySelector('i').className   = 'fas fa-arrow-up text-primary mr-2';
-    btnRaise.querySelector('span').className = 'text-primary font-semibold text-sm';
-    btnRetract.classList.remove('border-primary','bg-primary-bg');
-    btnRetract.classList.add('border-slate-200');
-    btnRetract.querySelector('i').className   = 'fas fa-arrow-down text-slate-400 mr-2';
-    btnRetract.querySelector('span').className = 'text-slate-400 font-semibold text-sm';
+    status.textContent = '餐盘已升起'; sub.textContent = '宠物可以进食';
+    btnR.classList.add('border-primary','bg-primary-bg'); btnR.classList.remove('border-slate-200');
+    btnR.querySelector('i').className = 'fas fa-arrow-up text-primary mr-2';
+    btnR.querySelector('span').className = 'text-primary font-semibold text-sm';
+    btnRt.classList.remove('border-primary','bg-primary-bg'); btnRt.classList.add('border-slate-200');
+    btnRt.querySelector('i').className = 'fas fa-arrow-down text-slate-400 mr-2';
+    btnRt.querySelector('span').className = 'text-slate-400 font-semibold text-sm';
   } else {
-    status.textContent = '餐盘已收回';
-    sub.textContent    = '点击升起餐盘';
-    btnRetract.classList.add('border-primary','bg-primary-bg');
-    btnRetract.classList.remove('border-slate-200');
-    btnRetract.querySelector('i').className   = 'fas fa-arrow-down text-primary mr-2';
-    btnRetract.querySelector('span').className = 'text-primary font-semibold text-sm';
-    btnRaise.classList.remove('border-primary','bg-primary-bg');
-    btnRaise.classList.add('border-slate-200');
-    btnRaise.querySelector('i').className   = 'fas fa-arrow-up text-slate-400 mr-2';
-    btnRaise.querySelector('span').className = 'text-slate-400 font-semibold text-sm';
+    status.textContent = '餐盘已收回'; sub.textContent = '点击升起餐盘';
+    btnRt.classList.add('border-primary','bg-primary-bg'); btnRt.classList.remove('border-slate-200');
+    btnRt.querySelector('i').className = 'fas fa-arrow-down text-primary mr-2';
+    btnRt.querySelector('span').className = 'text-primary font-semibold text-sm';
+    btnR.classList.remove('border-primary','bg-primary-bg'); btnR.classList.add('border-slate-200');
+    btnR.querySelector('i').className = 'fas fa-arrow-up text-slate-400 mr-2';
+    btnR.querySelector('span').className = 'text-slate-400 font-semibold text-sm';
   }
 }
 
 // ──────────────────────────────────────────────
-// 定时计划：渲染 + 发布
+// 定时计划
 // ──────────────────────────────────────────────
 const MEAL_LABELS = ['早餐','午餐','晚餐','加餐','夜宵'];
 
@@ -697,22 +809,16 @@ function renderSchedules() {
     div.innerHTML = `
       <div class="flex items-center">
         <div class="w-8 h-8 rounded-full bg-primary-bg flex items-center justify-center mr-3">
-          <span class="text-primary font-bold text-sm">${idx + 1}</span>
+          <span class="text-primary font-bold text-sm">${idx+1}</span>
         </div>
         <div class="flex-1">
           <p class="text-slate-500 text-sm">${s.label}</p>
-          <input type="time" value="${s.time}"
-            onchange="onTimeChange(${s.id}, this.value)"
+          <input type="time" value="${s.time}" onchange="onTimeChange(${s.id}, this.value)"
             class="text-2xl font-bold text-slate-800 border-none outline-none bg-transparent w-32 cursor-pointer">
         </div>
         <label class="relative inline-flex items-center cursor-pointer">
-          <input type="checkbox" ${s.enabled ? 'checked' : ''} class="sr-only peer"
-            onchange="onToggleSchedule(${s.id}, this.checked)">
-          <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer
-            peer-checked:after:translate-x-full peer-checked:after:border-white
-            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
-            after:bg-white after:rounded-full after:h-5 after:w-5
-            after:transition-all peer-checked:bg-primary"></div>
+          <input type="checkbox" ${s.enabled?'checked':''} class="sr-only peer" onchange="onToggleSchedule(${s.id}, this.checked)">
+          <div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
         </label>
       </div>
       <div class="flex justify-between items-center mt-3 pt-3 border-t border-slate-100">
@@ -726,86 +832,62 @@ function renderSchedules() {
   updateScheduleStats();
 }
 
-function onTimeChange(id, newTime) {
-  const s = schedules.find(x => x.id === id);
-  if (!s) return;
-  s.time = newTime;
-  publishSchedule(s);
+function onTimeChange(id, t) {
+  const s = schedules.find(x=>x.id===id); if(!s)return; s.time=t; publishSchedule(s);
 }
-
-function onToggleSchedule(id, enabled) {
-  const s = schedules.find(x => x.id === id);
-  if (!s) return;
-  s.enabled = enabled;
-  publishSchedule(s);
-  updateScheduleStats();
+function onToggleSchedule(id, en) {
+  const s = schedules.find(x=>x.id===id); if(!s)return; s.enabled=en; publishSchedule(s); updateScheduleStats();
 }
-
 function changeAmount(id) {
-  const s = schedules.find(x => x.id === id);
-  if (!s) return;
+  const s = schedules.find(x=>x.id===id); if(!s)return;
   const val = parseInt(prompt(`修改 ${s.label} 喂食量 (g)：`, s.amount));
-  if (!isNaN(val) && val > 0) {
-    s.amount = val;
-    renderSchedules();
-    publishSchedule(s);
-  }
+  if (!isNaN(val)&&val>0){s.amount=val;renderSchedules();publishSchedule(s);}
 }
-
 function addSchedule() {
-  const label = MEAL_LABELS[schedules.length] || `计划${schedules.length + 1}`;
-  const newS = { id: Date.now(), label, time: '08:00', amount: 30, enabled: true };
-  schedules.push(newS);
-  renderSchedules();
-  publishSchedule(newS);
+  const label = MEAL_LABELS[schedules.length]||`计划${schedules.length+1}`;
+  const newS = {id:Date.now(),label,time:'08:00',amount:30,enabled:true};
+  schedules.push(newS); renderSchedules(); publishSchedule(newS);
 }
-
-// 发布单条计划至 MQTT
 function publishSchedule(s) {
-  const payload = JSON.stringify({ id: s.id, time: s.time, amount: s.amount, enabled: s.enabled });
-  const ok = mqttPublish(TOPIC_SCHED, payload);
-  if (ok) showSyncToast('计划已同步至设备 ✓');
+  const ok = mqttPublish(TOPIC_SCHED, JSON.stringify({id:s.id,time:s.time,amount:s.amount,enabled:s.enabled}));
+  if(ok) showSyncToast('计划已同步至设备 ✓');
 }
-
 function updateScheduleStats() {
-  const enabled = schedules.filter(s => s.enabled);
-  document.getElementById('sch-enabled-count').textContent = enabled.length;
-  const total = enabled.reduce((sum, s) => sum + s.amount, 0);
-  document.getElementById('sch-total-g').textContent = total + 'g';
+  const en = schedules.filter(s=>s.enabled);
+  document.getElementById('sch-enabled-count').textContent = en.length;
+  document.getElementById('sch-total-g').textContent = en.reduce((sum,s)=>sum+s.amount,0)+'g';
 }
 
 // ──────────────────────────────────────────────
-// 喂食记录（动态追加）
+// 喂食记录
 // ──────────────────────────────────────────────
 function addFeedLog(timeStr, typeStr, amountStr, isRecent) {
   const log = document.getElementById('feed-log');
   const div = document.createElement('div');
   div.className = 'flex items-center py-3 fade-in';
   div.innerHTML = `
-    <div class="w-9 h-9 rounded-full ${isRecent ? 'bg-indigo-100' : 'bg-slate-100'} flex items-center justify-center mr-3">
-      <i class="fas fa-hand-pointer ${isRecent ? 'text-primary' : 'text-slate-400'} text-sm"></i>
+    <div class="w-9 h-9 rounded-full ${isRecent?'bg-indigo-100':'bg-slate-100'} flex items-center justify-center mr-3">
+      <i class="fas fa-hand-pointer ${isRecent?'text-primary':'text-slate-400'} text-sm"></i>
     </div>
     <div class="flex-1">
-      <p class="font-semibold ${isRecent ? 'text-slate-800' : 'text-slate-500'} text-sm">${timeStr}</p>
+      <p class="font-semibold ${isRecent?'text-slate-800':'text-slate-500'} text-sm">${timeStr}</p>
       <p class="text-xs text-slate-400">${typeStr}</p>
     </div>
-    <span class="${isRecent ? 'text-primary' : 'text-slate-400'} font-bold">${amountStr}</span>`;
+    <span class="${isRecent?'text-primary':'text-slate-400'} font-bold">${amountStr}</span>`;
   log.insertBefore(div, log.firstChild);
 }
 
 // ──────────────────────────────────────────────
-// Toast 提示
+// Toast
 // ──────────────────────────────────────────────
 let toastTimer = null;
 function showToast(msg) {
-  // 简易 alert 替代
   const t = document.createElement('div');
   t.className = 'fixed top-20 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-4 py-2 rounded-full shadow-lg z-50 fade-in';
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2500);
 }
-
 function showSyncToast(msg) {
   const toast = document.getElementById('sync-toast');
   document.getElementById('sync-text').textContent = msg;
@@ -826,21 +908,22 @@ function showPage(pageName) {
   });
 }
 
-function scanDevices() {
-  const btn = document.getElementById('scan-btn');
-  btn.querySelector('span:last-child').textContent = '搜索中…';
-  setTimeout(() => btn.querySelector('span:last-child').textContent = '搜索设备', 2000);
-}
-
 // ──────────────────────────────────────────────
 // 初始化
 // ──────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.classList.add('text-slate-400');
-  if (btn.dataset.page === 'home') {
-    btn.classList.replace('text-slate-400', 'text-primary');
-  }
+  if (btn.dataset.page === 'home') btn.classList.replace('text-slate-400','text-primary');
 });
+
+// 恢复上次保存的摄像头地址
+if (camUrl) {
+  document.getElementById('cam-url-input').value = camUrl;
+  document.getElementById('settings-cam-url').value = camUrl;
+  document.getElementById('cam-ip-display').textContent = camUrl;
+  // 自动重连
+  loadCameraStream(camUrl);
+}
 
 renderSchedules();
 initMQTT();
