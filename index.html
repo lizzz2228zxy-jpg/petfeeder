@@ -566,36 +566,44 @@ function saveAndConnectCamera() {
   showPage('monitor'); // 跳转到监测页查看
 }
 
+let captureTimer = null;
+
 function loadCameraStream(url) {
-  const img         = document.getElementById('cam-stream');
-  const iframeEl    = document.getElementById('cam-iframe');
+  const img = document.getElementById('cam-stream');
+  const iframeEl = document.getElementById('cam-iframe');
   const placeholder = document.getElementById('cam-placeholder');
+
+  clearInterval(captureTimer);
 
   placeholder.classList.add('hidden');
   iframeEl.classList.remove('active');
   iframeEl.src = '';
 
-  // 关键：不要自动拼 /stream，用户填什么就加载什么
-  const finalUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
-
-  img.src = '';
   img.classList.remove('hidden');
 
-  setTimeout(() => {
-    img.src = finalUrl;
-  }, 100);
+  const baseUrl = url.replace(/\/$/, '');
+  const captureUrl = baseUrl + '/capture';
+
+  function refreshCapture() {
+    img.src = captureUrl + '?t=' + Date.now();
+  }
 
   img.onload = () => {
     setCamStatus(true);
   };
 
   img.onerror = () => {
-    console.log('[CAM] 图片流加载失败');
-    img.classList.add('hidden');
-    placeholder.classList.remove('hidden');
+    console.log('[CAM] capture加载失败');
     setCamStatus(false);
-    showToast('摄像头画面加载失败，请检查地址');
+    placeholder.classList.remove('hidden');
+    img.classList.add('hidden');
+    clearInterval(captureTimer);
   };
+
+  refreshCapture();
+
+  // 每300ms刷新一张图片，视觉上接近实时画面
+  captureTimer = setInterval(refreshCapture, 300);
 }
 
 function onCamError() {
