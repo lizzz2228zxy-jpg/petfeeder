@@ -305,7 +305,7 @@
         <div class="flex gap-2">
           <input id="cam-url-input" type="text" placeholder="http://192.168.x.x/stream"
             class="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-primary"
-            value="">
+            value="http://172.20.10.2">
           <button onclick="connectCamera()" class="px-3 py-2 bg-primary rounded-lg text-white text-xs font-semibold btn-press">连接</button>
           <button onclick="disconnectCamera()" class="px-3 py-2 bg-slate-100 rounded-lg text-slate-500 text-xs font-semibold btn-press">断开</button>
         </div>
@@ -440,7 +440,7 @@
       <div class="flex gap-2 mb-3">
         <input id="settings-cam-url" type="text" placeholder="http://192.168.x.x/stream"
           class="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-primary"
-          value="">
+          value="http://172.20.10.2">
         <button onclick="saveAndConnectCamera()" class="px-4 py-2 bg-primary rounded-lg text-white text-xs font-semibold btn-press">保存连接</button>
       </div>
 
@@ -541,7 +541,7 @@ let schedules = [
 // ──────────────────────────────────────────────
 // ★ 摄像头相关
 // ──────────────────────────────────────────────
-let camUrl = localStorage.getItem('camUrl') || '';
+let camUrl = localStorage.getItem('camUrl') || 'http://172.20.10.2';
 let camConnected = false;
 let camRetryTimer = null;
 
@@ -566,44 +566,32 @@ function saveAndConnectCamera() {
   showPage('monitor'); // 跳转到监测页查看
 }
 
-let captureTimer = null;
-
 function loadCameraStream(url) {
-  const img = document.getElementById('cam-stream');
-  const iframeEl = document.getElementById('cam-iframe');
+  const img         = document.getElementById('cam-stream');
+  const iframeEl    = document.getElementById('cam-iframe');
   const placeholder = document.getElementById('cam-placeholder');
-
-  clearInterval(captureTimer);
-
   placeholder.classList.add('hidden');
-  iframeEl.classList.remove('active');
-  iframeEl.src = '';
 
+  // 先用 img 尝试直接加载 MJPEG 流
+  const streamUrl = url.replace(/\/$/, '') + '/stream';
+  img.src = streamUrl + '?t=' + Date.now();
   img.classList.remove('hidden');
-
-  const baseUrl = url.replace(/\/$/, '');
-  const captureUrl = baseUrl + '/capture';
-
-  function refreshCapture() {
-    img.src = captureUrl + '?t=' + Date.now();
-  }
+  iframeEl.classList.remove('active');
 
   img.onload = () => {
     setCamStatus(true);
   };
 
+  // img 失败后自动切换 iframe 方式（适用于 ngrok 等场景）
   img.onerror = () => {
-    console.log('[CAM] capture加载失败');
-    setCamStatus(false);
-    placeholder.classList.remove('hidden');
+    console.log('[CAM] img 加载失败，切换 iframe 模式');
     img.classList.add('hidden');
-    clearInterval(captureTimer);
+    // iframe 直接加载摄像头控制页面根路径
+    iframeEl.src = url.replace(/\/$/, '') + '/?ngrok-skip-browser-warning=true';
+    iframeEl.classList.add('active');
+    // iframe 无法直接判断是否加载成功，3秒后假定成功
+    setTimeout(() => setCamStatus(true), 3000);
   };
-
-  refreshCapture();
-
-  // 每600ms刷新一张图，减轻 ESP32-CAM 压力片，视觉上接近实时画面
-  captureTimer = setInterval(refreshCapture, 600);
 }
 
 function onCamError() {
