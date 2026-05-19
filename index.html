@@ -56,14 +56,26 @@
     /* 摄像头画面 */
     #cam-stream {
       width: 100%;
+      height: 220px;
       border-radius: 1rem;
       background: #0f172a;
       display: block;
+      border: none;
       object-fit: cover;
     }
     #cam-stream.hidden {
       display: none !important;
-      min-height: 0 !important;
+    }
+    #cam-iframe {
+      width: 100%;
+      height: 220px;
+      border-radius: 1rem;
+      border: none;
+      background: #0f172a;
+      display: none;
+    }
+    #cam-iframe.active {
+      display: block;
     }
     .cam-offline {
       display: flex;
@@ -285,6 +297,7 @@
           <p class="text-xs text-slate-400 mt-1">请在设置中填写 ESP32-CAM 地址</p>
         </div>
         <img id="cam-stream" src="" alt="摄像头画面" class="hidden" onerror="onCamError()">
+        <iframe id="cam-iframe" src="" allow="autoplay" allowfullscreen scrolling="no"></iframe>
       </div>
 
       <!-- 地址输入行（折叠式） -->
@@ -554,32 +567,45 @@ function saveAndConnectCamera() {
 }
 
 function loadCameraStream(url) {
-  const img = document.getElementById('cam-stream');
+  const img         = document.getElementById('cam-stream');
+  const iframeEl    = document.getElementById('cam-iframe');
   const placeholder = document.getElementById('cam-placeholder');
-
-  // 加随机参数防止缓存，让浏览器持续拉取 MJPEG 流
-  img.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
-  img.classList.remove('hidden');
   placeholder.classList.add('hidden');
 
-  img.onload = () => setCamStatus(true);
-  // onerror 已在 HTML 的 onerror 属性中绑定
+  // 先用 img 尝试直接加载 MJPEG 流
+  const streamUrl = url.replace(/\/$/, '') + '/stream';
+  img.src = streamUrl + '?t=' + Date.now();
+  img.classList.remove('hidden');
+  iframeEl.classList.remove('active');
+
+  img.onload = () => {
+    setCamStatus(true);
+  };
+
+  // img 失败后自动切换 iframe 方式（适用于 ngrok 等场景）
+  img.onerror = () => {
+    console.log('[CAM] img 加载失败，切换 iframe 模式');
+    img.classList.add('hidden');
+    // iframe 直接加载摄像头控制页面根路径
+    iframeEl.src = url.replace(/\/$/, '') + '/?ngrok-skip-browser-warning=true';
+    iframeEl.classList.add('active');
+    // iframe 无法直接判断是否加载成功，3秒后假定成功
+    setTimeout(() => setCamStatus(true), 3000);
+  };
 }
 
 function onCamError() {
-  setCamStatus(false);
-  // 5秒后自动重试
-  clearTimeout(camRetryTimer);
-  camRetryTimer = setTimeout(() => {
-    if (camUrl) loadCameraStream(camUrl);
-  }, 5000);
+  // 由 img.onerror 内部处理，此函数保留兼容
 }
 
 function disconnectCamera() {
   clearTimeout(camRetryTimer);
-  const img = document.getElementById('cam-stream');
+  const img      = document.getElementById('cam-stream');
+  const iframeEl = document.getElementById('cam-iframe');
   img.src = '';
   img.classList.add('hidden');
+  iframeEl.src = '';
+  iframeEl.classList.remove('active');
   document.getElementById('cam-placeholder').classList.remove('hidden');
   setCamStatus(false);
 }
@@ -619,7 +645,9 @@ function setCamStatus(connected) {
 function openFullscreen() {
   if (!camConnected) { showToast('摄像头未连接'); return; }
   const fs = document.getElementById('cam-fullscreen');
-  document.getElementById('cam-fullscreen-img').src = document.getElementById('cam-stream').src;
+  const imgSrc = document.getElementById('cam-stream').src;
+  // img模式用图片全屏，iframe模式用流地址
+  document.getElementById('cam-fullscreen-img').src = imgSrc || (camUrl + '/stream');
   fs.classList.add('active');
   // 锁定屏幕方向为横屏（部分浏览器支持）
   if (screen.orientation && screen.orientation.lock) {
