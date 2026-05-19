@@ -570,27 +570,31 @@ function loadCameraStream(url) {
   const img         = document.getElementById('cam-stream');
   const iframeEl    = document.getElementById('cam-iframe');
   const placeholder = document.getElementById('cam-placeholder');
-  placeholder.classList.add('hidden');
 
-  // 先用 img 尝试直接加载 MJPEG 流
-  const streamUrl = url.replace(/\/$/, '') + '/stream';
-  img.src = streamUrl + '?t=' + Date.now();
-  img.classList.remove('hidden');
+  placeholder.classList.add('hidden');
   iframeEl.classList.remove('active');
+  iframeEl.src = '';
+
+  // 关键：不要自动拼 /stream，用户填什么就加载什么
+  const finalUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+
+  img.src = '';
+  img.classList.remove('hidden');
+
+  setTimeout(() => {
+    img.src = finalUrl;
+  }, 100);
 
   img.onload = () => {
     setCamStatus(true);
   };
 
-  // img 失败后自动切换 iframe 方式（适用于 ngrok 等场景）
   img.onerror = () => {
-    console.log('[CAM] img 加载失败，切换 iframe 模式');
+    console.log('[CAM] 图片流加载失败');
     img.classList.add('hidden');
-    // iframe 直接加载摄像头控制页面根路径
-    iframeEl.src = url.replace(/\/$/, '') + '/?ngrok-skip-browser-warning=true';
-    iframeEl.classList.add('active');
-    // iframe 无法直接判断是否加载成功，3秒后假定成功
-    setTimeout(() => setCamStatus(true), 3000);
+    placeholder.classList.remove('hidden');
+    setCamStatus(false);
+    showToast('摄像头画面加载失败，请检查地址');
   };
 }
 
