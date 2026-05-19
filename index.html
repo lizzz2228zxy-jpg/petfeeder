@@ -602,8 +602,8 @@ function loadCameraStream(url) {
 
   refreshCapture();
 
-  // 每300ms刷新一张图片，视觉上接近实时画面
-  captureTimer = setInterval(refreshCapture, 300);
+  // 每600ms刷新一张图，减轻 ESP32-CAM 压力片，视觉上接近实时画面
+  captureTimer = setInterval(refreshCapture, 600);
 }
 
 function onCamError() {
